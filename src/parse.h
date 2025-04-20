@@ -3,17 +3,28 @@
 
 #include <stddef.h>
 
+#define ARG_DELIM   " \t"
+#define PIPE_DELIM  "|"
+#define CMD_DELIM   ";"
+#define MAX_CMD_CNT 5
+
 typedef char *CmdArg;
 
-typedef struct CmdList {
-    size_t count;
-    CmdArg *args;
-    struct CmdList *next_cmd;
-} CmdList;
+typedef struct Command {
+    size_t count;           /* count of arg */
+    CmdArg *args;           /* args list */
+    struct Command *next;   /* used for piping */
+} Command;
 
-CmdList *new_cmd_list(void);
-void free_cmd_list(CmdList *cmd_list);
-void append_cmd_arg(CmdList *cmd_list, CmdArg arg);
+extern Command *cmd_list[MAX_CMD_CNT];
+
+Command *new_cmd(void);
+void free_cmd(Command *cmd);
+void free_cmd_list(void);
+void append_cmd_arg(Command *cmd, CmdArg arg);
 void print_cmd_args(CmdArg *args);
+void process_cmd_args(Command *cmd);
+void split_by_pipe(void);
+void split_by_semicon(char *input);
 
 #endif /* _DYSH_PARSER_H_ */
