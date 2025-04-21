@@ -26,5 +26,7 @@ int main(int argc, char **argv)
     puts(buf);
     fflush(stdout);
 
+    free(buf);
+
     return 0;
 }

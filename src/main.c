@@ -7,7 +7,17 @@
 #include "parse.h"
 
 #define CMD_LENGTH  256
-#define DEBUG_PRINT_ARGS
+#define DEBUG_PRINT_ARGS 0
+#define READ_END  0     /* pipe read end */
+#define WRITE_END 1     /* pipe write end */
+
+/* Exit if exp is true */
+#define EXIT_IF(exp, fmt, ...) do { \
+        if (exp) { \
+            fprintf(stderr, fmt, ##__VA_ARGS__); \
+            exit(EXIT_FAILURE); \
+        } \
+    } while (0)
 
 Command *cmd_list[MAX_CMD_CNT];
 
@@ -29,17 +39,49 @@ static void read_input(char *buf, size_t size)
  */
 static void process_input(char *input)
 {
-    /* Need to check if input is valid */
-
-    split_by_semicon(input);
+    split_by_semicolon(input);
     split_by_pipe();
+    split_by_space();
 }
 
 /**
- * @brief A clean up function, executed after call exit
+ * @brief This is helper function to piping cmd through recursively call
+ * @param cmd Current cmd need to be executed
+ * @param read_fd The read fd (previous pipe read end), we need to redirect it to STDIN
+ * @note Also, we need to redirect the new pipe we created in this function to STDOUT,
+ * and pass its read_end to next cmd
  */
-static void clean_up(void)
+static void execute_cmd_with_pipe(Command *cmd, int read_fd)
 {
+    int pfd[2];
+    EXIT_IF(pipe(pfd) < 0, "failed pipe\n");
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        close(pfd[READ_END]);
+
+        /* Redirect read_fd to STDIN and close duplicate read_fd */
+        EXIT_IF(dup2(read_fd, STDIN_FILENO) < 0, "failed dup2\n");
+        close(read_fd);
+
+        /* Redirect pfd[WRITE_END] to STDOUT and close duplicate pfd[WRITE_END] if there is next piping cmd */
+        if (cmd->next)
+            EXIT_IF(dup2(pfd[WRITE_END], STDOUT_FILENO) < 0, "failed dup2\n");
+        close(pfd[WRITE_END]);
+
+        /* Output of current cmd is passed to next cmd through pipe */
+        char path[CMD_LENGTH];
+        sprintf(path, "src/builtin/%s", cmd->args[0]);
+        execv(path, cmd->args);
+        exit(EXIT_FAILURE); /* We arrive here when execv failed */
+    }
+
+    close(read_fd);
+    close(pfd[WRITE_END]);
+    waitpid(pid, NULL, 0); /* Block until child process is over execution */
+    if (cmd->next)
+        execute_cmd_with_pipe(cmd->next, pfd[READ_END]);
+    close(pfd[READ_END]);
 }
 
 /**
@@ -50,22 +92,46 @@ static void clean_up(void)
 static void execute_cmd(Command *cmd)
 {
     if (cmd->count == 0) return;
+
     if (strcmp(cmd->args[0], "exit") == 0)
-        exit(0);
+        exit(EXIT_SUCCESS);
 
     char path[CMD_LENGTH];
     sprintf(path, "src/builtin/%s", cmd->args[0]);
-    pid_t pid = fork();
-    if (pid == 0) {
-        execv(path, cmd->args);
-        /* exit(0) is important now, if the path is not exist, execv() will fail
-           so the child process will continue. What does it mean? It means we create 
-           another dysh (child process), and child process will take the charge of terminal,
-           because parent process is blocked at wait(NULL). So we need to exit twice */
-        exit(0);
-    }
 
-    wait(NULL);
+    if (!(cmd->next)) {
+        /* No piping */
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            execv(path, cmd->args);
+            exit(EXIT_FAILURE); /* We arrive here when execv failed */
+        }
+        wait(NULL);
+    } else {
+        /* Piping */
+
+        int pfd[2];
+        EXIT_IF(pipe(pfd) < 0, "failed pipe\n");
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            close(pfd[READ_END]);
+
+            /* Redirect pfd[WRITE_END] to STDOUT and close duplicate pfd[WRITE_END] */
+            EXIT_IF(dup2(pfd[WRITE_END], STDOUT_FILENO) < 0, "failed dup2\n");
+            close(pfd[WRITE_END]);
+
+            /* Output of current cmd is passed to next cmd through pipe */
+            execv(path, cmd->args);
+            exit(EXIT_FAILURE); /* We arrive here when execv failed */
+        }
+
+        close(pfd[WRITE_END]);
+        waitpid(pid, NULL, 0); /* Block until child process is over execution */
+        execute_cmd_with_pipe(cmd->next, pfd[READ_END]);
+        close(pfd[READ_END]);
+    }
 }
 
 /**
@@ -93,12 +159,14 @@ static void loop(void)
         fflush(stdout);
         read_input(input, sizeof(input));
         process_input(input);
-#ifdef DEBUG_PRINT_ARGS
+#if DEBUG_PRINT_ARGS
         for (int i = 0; i < MAX_CMD_CNT; i++) {
             Command *cmd = cmd_list[i];
             if (!cmd) continue;
-            printf("command %d\n", i);
+            printf("< command %d\n", i);
+            int count = 0;
             while (cmd) {
+                printf("<< comand pipe %d\n", count++);
                 print_cmd_args(cmd);
                 cmd = cmd->next;
             }
@@ -118,7 +186,7 @@ int main(void)
         cmd_list[i] = NULL;
     }
 
-    atexit(clean_up);
+    atexit(free_cmd_list);
     loop();
     return 0;
 }

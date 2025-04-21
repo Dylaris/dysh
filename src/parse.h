@@ -24,6 +24,7 @@ void free_cmd_list(void);
 void append_cmd_arg(Command *cmd, CmdArg arg);
 void print_cmd_args(Command *cmd);
 void split_by_pipe(void);
-void split_by_semicon(char *input);
+void split_by_space(void);
+void split_by_semicolon(char *input);
 
 #endif /* _DYSH_PARSER_H_ */

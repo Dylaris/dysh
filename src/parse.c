@@ -114,10 +114,10 @@ void print_cmd_args(Command *cmd)
 }
 
 /**
- * @brief Split the input by semicon
+ * @brief Split the input by semicolon
  * @param input Command line input
  */
-void split_by_semicon(char *input)
+void split_by_semicolon(char *input)
 {
     char *cmd_str = strtok(input, CMD_DELIM);
     while (cmd_str) {
@@ -144,7 +144,43 @@ static void free_cmd_args(Command *cmd)
 }
 
 /**
- * @brief Split each cmd list by pipe '|'
+ * @brief Helper function for split_by_space
+ * @param cmd The processed one
+ * @return 
+ */
+static void _split_by_space(Command *cmd)
+{
+    char *cmd_str = STR_COPY(cmd->args[0]);
+    free_cmd_args(cmd);
+    CmdArg arg = strtok(cmd_str, ARG_DELIM);
+    while (arg) {
+        append_cmd_arg(cmd, arg);
+        arg = strtok(NULL, ARG_DELIM);
+    }
+    free(cmd_str);
+}
+
+/**
+ * @brief Split each cmd's args (processed by pipe) by space to become a really arg
+ * and we need to process 'next' cmd (if pipe) and cmd in cmd_list
+ */
+void split_by_space(void)
+{
+    for (int i = 0; i < MAX_CMD_CNT; i++) {
+        Command *cmd = cmd_list[i];
+        if (!cmd) continue;
+
+        /* Process piping if has */
+        Command *p = cmd;
+        while (p) {
+            _split_by_space(p);
+            p = p->next;
+        }
+    }
+}
+
+/**
+ * @brief Split each cmd by pipe '|'
  */
 void split_by_pipe(void)
 {

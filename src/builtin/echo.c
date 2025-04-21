@@ -9,7 +9,7 @@ int main(int argc, char **argv)
     else
         echo_content[0] = '\0';
 
-    printf("%s\n", echo_content);
+    puts(echo_content);
 
     return 0;
 }
