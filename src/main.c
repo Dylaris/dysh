@@ -7,7 +7,9 @@
 #include "parse.h"
 
 #define CMD_LENGTH  256
-// #define DEBUG_PRINT_ARGS
+#define DEBUG_PRINT_ARGS
+
+Command *cmd_list[MAX_CMD_CNT];
 
 /**
  * @brief Read input and store it to buffer
@@ -66,9 +68,15 @@ static void execute_cmd(Command *cmd)
     wait(NULL);
 }
 
+/**
+ * @brief Execute all command in cmd_list
+ */
 static void execute_cmd_list(void)
 {
-
+    for (int i = 0; i < MAX_CMD_CNT; i++) {
+        if (!cmd_list[i]) continue;
+        execute_cmd(cmd_list[i]);
+    }
 }
 
 /**
@@ -86,7 +94,15 @@ static void loop(void)
         read_input(input, sizeof(input));
         process_input(input);
 #ifdef DEBUG_PRINT_ARGS
-        print_cmd_args(cmd->args);
+        for (int i = 0; i < MAX_CMD_CNT; i++) {
+            Command *cmd = cmd_list[i];
+            if (!cmd) continue;
+            printf("command %d\n", i);
+            while (cmd) {
+                print_cmd_args(cmd);
+                cmd = cmd->next;
+            }
+        }
 #endif /* DEBUG_PRINT_ARGS */
         execute_cmd_list();
 
@@ -98,7 +114,6 @@ static void loop(void)
 int main(void)
 {
     /* Initialize cmd_list */
-    Command *cmd_list[MAX_CMD_CNT];
     for (int i = 0; i < MAX_CMD_CNT; i++) {
         cmd_list[i] = NULL;
     }

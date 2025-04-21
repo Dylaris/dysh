@@ -22,8 +22,7 @@ Command *new_cmd(void);
 void free_cmd(Command *cmd);
 void free_cmd_list(void);
 void append_cmd_arg(Command *cmd, CmdArg arg);
-void print_cmd_args(CmdArg *args);
-void process_cmd_args(Command *cmd);
+void print_cmd_args(Command *cmd);
 void split_by_pipe(void);
 void split_by_semicon(char *input);
 

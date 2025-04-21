@@ -4,6 +4,13 @@
 #include <assert.h>
 #include "parse.h"
 
+/* strdup() does not allow NULL as parameter, so I define this macro */
+#define STR_COPY(ptr) ({ \
+        char *res = NULL; \
+        if (ptr) res = strdup(ptr); \
+        res; \
+    })
+
 /**
  * @brief Create a cmd
  * @return A cmd
@@ -87,33 +94,23 @@ void append_cmd_arg(Command *cmd, CmdArg arg)
 
     /* Append new arg to args list (end with NULL) */
     cmd->args = args;
-    cmd->args[cmd->count - 1] = strdup(arg);
+    cmd->args[cmd->count - 1] = STR_COPY(arg);
     assert(cmd->args[cmd->count - 1]);
     cmd->args[cmd->count] = NULL;
 }
 
 /**
  * @brief Print the args for debuging
- * @param args Target
+ * @param cmd Target
  */
-void print_cmd_args(CmdArg *args)
+void print_cmd_args(Command *cmd)
 {
-    CmdArg *p = args;
+    CmdArg *p = cmd->args;
     while (*p) {
         printf("ARG: %s\n", *p);
         p++;
     }
     fflush(stdout);
-}
-
-/**
- * @brief Process the pipe, redirect and something else
- * @param cmd The one needed to be processed
- */
-void process_cmd_args(Command *cmd)
-{
-    Command *p_cmd = cmd;
-    CmdArg *p_arg = cmd->args;
 }
 
 /**
@@ -131,11 +128,16 @@ void split_by_semicon(char *input)
     }
 }
 
+/**
+ * @brief Just free the old args, so that I can reassign args
+ * @param cmd Target need to be freed
+ */
 static void free_cmd_args(Command *cmd)
 {
-    for (int i = 0; i < cmd->count; i++) {
+    for (size_t i = 0; i < cmd->count; i++) {
         if (cmd->args[i]) {
             free(cmd->args[i]);
+            cmd->args[i] = NULL;
         }
     }
     cmd->count = 0;
@@ -150,8 +152,11 @@ void split_by_pipe(void)
         Command *cmd = cmd_list[i];
         if (!cmd) continue;
 
-        char *pipe_cmd_str = strtok(cmd->args[0], PIPE_DELIM);
+        char *old_str = STR_COPY(cmd->args[0]);
+        char *pipe_cmd_str = strtok(old_str, PIPE_DELIM);
         while (pipe_cmd_str) {
+            /* pipe_cmd_str is a pointer to cmd->args[0], if we donot use
+               strdup, free_cmd_args(cmd) also affect pipe_cmd_str */
             free_cmd_args(cmd);
             append_cmd_arg(cmd, pipe_cmd_str);
             pipe_cmd_str = strtok(NULL, PIPE_DELIM);
@@ -160,5 +165,6 @@ void split_by_pipe(void)
                 cmd = cmd->next;
             }
         }
+        free(old_str);
     }
 }
