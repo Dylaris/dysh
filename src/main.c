@@ -6,10 +6,11 @@
 #include <assert.h>
 #include "parse.h"
 
-#define CMD_LENGTH  256
+#define CMD_LENGTH       256
 #define DEBUG_PRINT_ARGS 0
-#define READ_END  0     /* pipe read end */
-#define WRITE_END 1     /* pipe write end */
+#define READ_END         0 /* pipe read end */
+#define WRITE_END        1 /* pipe write end */
+#define CMD_FOLER        "src/bin/"
 
 /* Exit if exp is true */
 #define EXIT_IF(exp, fmt, ...) do { \
@@ -71,7 +72,7 @@ static void execute_cmd_with_pipe(Command *cmd, int read_fd)
 
         /* Output of current cmd is passed to next cmd through pipe */
         char path[CMD_LENGTH];
-        sprintf(path, "src/builtin/%s", cmd->args[0]);
+        sprintf(path, CMD_FOLER"%s", cmd->args[0]);
         execv(path, cmd->args);
         exit(EXIT_FAILURE); /* We arrive here when execv failed */
     }
@@ -97,7 +98,7 @@ static void execute_cmd(Command *cmd)
         exit(EXIT_SUCCESS);
 
     char path[CMD_LENGTH];
-    sprintf(path, "src/builtin/%s", cmd->args[0]);
+    sprintf(path, CMD_FOLER"%s", cmd->args[0]);
 
     if (!(cmd->next)) {
         /* No piping */

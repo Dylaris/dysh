@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <malloc.h>
 
+/* There has one problem: 'cat' will add an extra '\n'
+   because of 'puts()' and it will affect 'wc' */
+
 int main(int argc, char **argv)
 {
     if (argc < 2) return 1;
