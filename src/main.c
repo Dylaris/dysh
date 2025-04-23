@@ -3,7 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <assert.h>
+#include <signal.h>
+#include <errno.h>
 #include "parse.h"
 
 #define CMD_LENGTH       256
@@ -22,6 +23,34 @@
 
 Command *cmd_list[MAX_CMD_CNT];
 
+static void reset_signal_handler(int sig)
+{
+    struct sigaction sa;
+    sa.sa_handler = SIG_DFL;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(sig, &sa, NULL);
+}
+
+/**
+ * @brief Signal handler
+ * @note For shell process, we do no need to do anything else, block some 
+ * signal is ok. For child process, using to execute command, we need to 
+ * change the signal handler. Basically, SIGINT should be valid to child process
+ * instead of shell process.
+ * @param sig Handling signal
+ */
+static void signal_handler(int sig)
+{
+    switch (sig) {
+    case SIGINT:
+        puts("You pressed CTRL+C");
+        break;
+    default: 
+        break;
+    }
+}
+
 /**
  * @brief Read input and store it to buffer
  * @param buf Buffer storing input
@@ -29,7 +58,8 @@ Command *cmd_list[MAX_CMD_CNT];
  */
 static void read_input(char *buf, size_t size)
 {
-    assert(fgets(buf, size, stdin));
+    /* fgtes() will return NULL and set errno to EINTR when signal happened */
+    EXIT_IF(fgets(buf, size, stdin) == NULL && errno != EINTR, "read input");
     buf[strcspn(buf, "\n")] = '\0';
 }
 
@@ -59,6 +89,8 @@ static void execute_cmd_with_pipe(Command *cmd, int read_fd)
 
     pid_t pid = fork();
     if (pid == 0) {
+        reset_signal_handler(SIGINT);
+
         close(pfd[READ_END]);
 
         /* Redirect read_fd to STDIN and close duplicate read_fd */
@@ -105,10 +137,22 @@ static void execute_cmd(Command *cmd)
 
         pid_t pid = fork();
         if (pid == 0) {
+            reset_signal_handler(SIGINT);
             execv(path, cmd->args);
             exit(EXIT_FAILURE); /* We arrive here when execv failed */
         }
-        wait(NULL);
+        /* Interesting behavior: When using wait(NULL) to wait for a child 
+           process that has been interrupted (e.g., by Ctrl+C), a strange 
+           issue occurs where the prompt gets mixed with the command output. 
+           This doesn't happen when using waitpid(pid, NULL, 0) to wait for 
+           the child process.
+           
+           Example:
+           - Run: `tee test_file` in a child process.
+           - Interrupt it using Ctrl+C.
+           - After interrupting, run `cat Makefile`, and you'll notice that the output from `cat` and the prompt
+             get mixed together due to the way the shell handles the interrupted child process. */
+        waitpid(pid, NULL, 0);
     } else {
         /* Piping */
 
@@ -117,6 +161,8 @@ static void execute_cmd(Command *cmd)
 
         pid_t pid = fork();
         if (pid == 0) {
+            reset_signal_handler(SIGINT);
+
             close(pfd[READ_END]);
 
             /* Redirect pfd[WRITE_END] to STDOUT and close duplicate pfd[WRITE_END] */
@@ -183,9 +229,15 @@ static void loop(void)
 int main(void)
 {
     /* Initialize cmd_list */
-    for (int i = 0; i < MAX_CMD_CNT; i++) {
+    for (int i = 0; i < MAX_CMD_CNT; i++)
         cmd_list[i] = NULL;
-    }
+
+    /* Set signal handler */
+    struct sigaction sa;
+    sa.sa_handler = signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
 
     atexit(free_cmd_list);
     loop();
