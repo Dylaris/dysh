@@ -6,20 +6,13 @@
 #include <signal.h>
 #include <errno.h>
 #include "parse.h"
+#include "err.h"
 
 #define CMD_LENGTH       256
 #define DEBUG_PRINT_ARGS 0
 #define READ_END         0 /* pipe read end */
 #define WRITE_END        1 /* pipe write end */
 #define CMD_FOLER        "src/bin/"
-
-/* Exit if exp is true */
-#define EXIT_IF(exp, fmt, ...) do { \
-        if (exp) { \
-            fprintf(stderr, fmt, ##__VA_ARGS__); \
-            exit(EXIT_FAILURE); \
-        } \
-    } while (0)
 
 Command *cmd_list[MAX_CMD_CNT];
 

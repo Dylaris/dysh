@@ -1,15 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
+#include <unistd.h>
 #include "parse.h"
+#include "err.h"
 
 /* strdup() does not allow NULL as parameter, so I define this macro */
-#define STR_COPY(ptr) ({ \
+#define STR_COPY(ptr) \
+    ({ \
         char *res = NULL; \
         if (ptr) res = strdup(ptr); \
         res; \
-    })
+     })
 
 /**
  * @brief Create a cmd
@@ -20,13 +22,16 @@
 Command *new_cmd(void)
 {
     Command *cmd = malloc(sizeof(Command));
-    assert(cmd);
+    EXIT_IF(cmd == NULL, "out of memory");
 
     cmd->count = 0;
     cmd->args = malloc(sizeof(CmdArg));
-    assert(cmd->args);
+    EXIT_IF(cmd->args == NULL, "out of memory");
     cmd->args[0] = NULL;
     cmd->next = NULL;
+    cmd->redirect_fd[REDIRECT_STDIN]  = INVALID_FD;
+    cmd->redirect_fd[REDIRECT_STDOUT] = INVALID_FD;
+    cmd->redirect_fd[REDIRECT_STDERR] = INVALID_FD;
 
     return cmd;
 }
@@ -54,8 +59,13 @@ void free_cmd_list(void)
  */
 void free_cmd(Command *cmd)
 {
-    for (size_t i = 0; i < cmd->count; i++)
+    for (size_t i = 0; i < cmd->count; i++) {
         free(cmd->args[i]);
+        for (int i = 0; i < 3; i++) {
+            if (cmd->redirect_fd[i] != -1) 
+                close(cmd->redirect_fd[i]);
+        }
+    }
     free(cmd->args);
     free(cmd);
 }
@@ -90,12 +100,12 @@ void append_cmd_arg(Command *cmd, CmdArg arg)
     /* Expand */
     cmd->count++;
     CmdArg *args = realloc(cmd->args, sizeof(CmdArg) * (cmd->count + 1));
-    assert(args);
+    EXIT_IF(args == NULL, "out of memory");
 
     /* Append new arg to args list (end with NULL) */
     cmd->args = args;
     cmd->args[cmd->count - 1] = STR_COPY(arg);
-    assert(cmd->args[cmd->count - 1]);
+    EXIT_IF(cmd->args[cmd->count - 1] == NULL, "out of memory");
     cmd->args[cmd->count] = NULL;
 }
 
@@ -146,7 +156,6 @@ static void free_cmd_args(Command *cmd)
 /**
  * @brief Helper function for split_by_space
  * @param cmd The processed one
- * @return 
  */
 static void _split_by_space(Command *cmd)
 {
@@ -171,10 +180,9 @@ void split_by_space(void)
         if (!cmd) continue;
 
         /* Process piping if has */
-        Command *p = cmd;
-        while (p) {
-            _split_by_space(p);
-            p = p->next;
+        while (cmd) {
+            _split_by_space(cmd);
+            cmd = cmd->next;
         }
     }
 }
@@ -202,5 +210,30 @@ void split_by_pipe(void)
             }
         }
         free(old_str);
+    }
+}
+
+/**
+ * @brief Helper function of process_redirect()
+ * @param cmd The processed one
+ */
+static void _process_redirect(Command *cmd)
+{
+    (void) cmd;
+}
+
+/**
+ * @brief Traversal the cmd args and put the redirect things to 
+ * cmd's rdirect_fd[3]
+ */
+void process_redirect(void)
+{
+    for (int i = 0; i < MAX_CMD_CNT; i++) {
+        Command *cmd = cmd_list[i];
+
+        while (cmd) {
+            _process_redirect(cmd);
+            cmd = cmd->next;
+        }
     }
 }

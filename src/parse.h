@@ -8,12 +8,18 @@
 #define CMD_DELIM   ";"
 #define MAX_CMD_CNT 5
 
+#define REDIRECT_STDIN   0
+#define REDIRECT_STDOUT  1
+#define REDIRECT_STDERR  2
+#define INVALID_FD      -1
+
 typedef char *CmdArg;
 
 typedef struct Command {
     size_t count;           /* count of arg */
     CmdArg *args;           /* args list */
     struct Command *next;   /* used for piping */
+    int redirect_fd[3];     /* used for redirecting */
 } Command;
 
 extern Command *cmd_list[MAX_CMD_CNT];
@@ -26,5 +32,6 @@ void print_cmd_args(Command *cmd);
 void split_by_pipe(void);
 void split_by_space(void);
 void split_by_semicolon(char *input);
+void process_redirect(void);
 
 #endif /* _DYSH_PARSER_H_ */
