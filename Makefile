@@ -7,4 +7,5 @@ dysh: src/main.c src/parse.c
 	gcc -Wall -Wextra -std=gnu11 -I src/ -o dysh src/main.c src/parse.c
 
 clean:
-	rm dysh && make -C src/builtin clean
+	-rm dysh 
+	make -C src/builtin clean

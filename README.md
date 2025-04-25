@@ -1,6 +1,7 @@
 #### Dylaris's shell
 
 Usage:
-``
-make
+```console
+$ make
+$ ./dysh
 ```

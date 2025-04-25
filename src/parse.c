@@ -18,15 +18,15 @@
  * @brief Create a cmd
  * @return A cmd
  * @note Use NULL to mark the end of args
- * and next points to next command
+ * and next points to next struct dysh_cmd
  */
-Command *new_cmd(void)
+struct dysh_cmd *new_cmd(void)
 {
-    Command *cmd = malloc(sizeof(Command));
+    struct dysh_cmd *cmd = malloc(sizeof(struct dysh_cmd));
     EXIT_IF(cmd == NULL, "out of memory");
 
     cmd->count = 0;
-    cmd->args = malloc(sizeof(CmdArg));
+    cmd->args = malloc(sizeof(dysh_cmd_arg));
     EXIT_IF(cmd->args == NULL, "out of memory");
     cmd->args[0] = NULL;
     cmd->next = NULL;
@@ -38,7 +38,7 @@ Command *new_cmd(void)
 }
 
 /**
- * @brief Free all the commands in cmd_list
+ * @brief Free all the struct dysh_cmds in cmd_list
  */
 void free_cmd_list(void)
 {
@@ -58,7 +58,7 @@ void free_cmd_list(void)
  * 2. Args list itself
  * 3. Cmd itself
  */
-void free_cmd(Command *cmd)
+void free_cmd(struct dysh_cmd *cmd)
 {
     for (size_t i = 0; i < cmd->count; i++) {
         free(cmd->args[i]);
@@ -77,7 +77,7 @@ void free_cmd(Command *cmd)
  * @param new_cmd The new cmd list
  * @note Need a extra NULL to mark the end of cmd list
  */
-void append_cmd(Command *cmd)
+void append_cmd(struct dysh_cmd *cmd)
 {
     for (int i = 0; i < MAX_CMD_CNT; i++) {
         if (!cmd_list[i]) {
@@ -96,11 +96,11 @@ void append_cmd(Command *cmd)
  * @param arg The new arg
  * @note Need a extra NULL to mark the end of args list
  */
-void append_cmd_arg(Command *cmd, CmdArg arg)
+void append_cmd_arg(struct dysh_cmd *cmd, dysh_cmd_arg arg)
 {
     /* Expand */
     cmd->count++;
-    CmdArg *args = realloc(cmd->args, sizeof(CmdArg) * (cmd->count + 1));
+    dysh_cmd_arg *args = realloc(cmd->args, sizeof(dysh_cmd_arg) * (cmd->count + 1));
     EXIT_IF(args == NULL, "out of memory");
 
     /* Append new arg to args list (end with NULL) */
@@ -114,9 +114,9 @@ void append_cmd_arg(Command *cmd, CmdArg arg)
  * @brief Print the args for debuging
  * @param cmd Target
  */
-void print_cmd_args(Command *cmd)
+void print_cmd_args(struct dysh_cmd *cmd)
 {
-    CmdArg *p = cmd->args;
+    dysh_cmd_arg *p = cmd->args;
     while (*p) {
         printf("ARG: %s\n", *p);
         p++;
@@ -126,13 +126,13 @@ void print_cmd_args(Command *cmd)
 
 /**
  * @brief Split the input by semicolon
- * @param input Command line input
+ * @param input struct dysh_cmd line input
  */
 void split_by_semicolon(char *input)
 {
     char *cmd_str = strtok(input, CMD_DELIM);
     while (cmd_str) {
-        Command *cmd = new_cmd();
+        struct dysh_cmd *cmd = new_cmd();
         append_cmd(cmd);
         append_cmd_arg(cmd, cmd_str);
         cmd_str = strtok(NULL, CMD_DELIM);
@@ -143,7 +143,7 @@ void split_by_semicolon(char *input)
  * @brief Just free the old args, so that I can reassign args
  * @param cmd Target need to be freed
  */
-static void free_cmd_args(Command *cmd)
+static void free_cmd_args(struct dysh_cmd *cmd)
 {
     for (size_t i = 0; i < cmd->count; i++) {
         if (cmd->args[i]) {
@@ -158,11 +158,11 @@ static void free_cmd_args(Command *cmd)
  * @brief Helper function for split_by_space
  * @param cmd The processed one
  */
-static void _split_by_space(Command *cmd)
+static void _split_by_space(struct dysh_cmd *cmd)
 {
     char *cmd_str = STR_COPY(cmd->args[0]);
     free_cmd_args(cmd);
-    CmdArg arg = strtok(cmd_str, ARG_DELIM);
+    dysh_cmd_arg arg = strtok(cmd_str, ARG_DELIM);
     while (arg) {
         append_cmd_arg(cmd, arg);
         arg = strtok(NULL, ARG_DELIM);
@@ -177,7 +177,7 @@ static void _split_by_space(Command *cmd)
 void split_by_space(void)
 {
     for (int i = 0; i < MAX_CMD_CNT; i++) {
-        Command *cmd = cmd_list[i];
+        struct dysh_cmd *cmd = cmd_list[i];
         if (!cmd) continue;
 
         /* Process piping if has */
@@ -194,7 +194,7 @@ void split_by_space(void)
 void split_by_pipe(void)
 {
     for (int i = 0; i < MAX_CMD_CNT; i++) {
-        Command *cmd = cmd_list[i];
+        struct dysh_cmd *cmd = cmd_list[i];
         if (!cmd) continue;
 
         char *old_str = STR_COPY(cmd->args[0]);
@@ -206,7 +206,7 @@ void split_by_pipe(void)
             append_cmd_arg(cmd, pipe_cmd_str);
             pipe_cmd_str = strtok(NULL, PIPE_DELIM);
             if (pipe_cmd_str) {
-                cmd->next = new_cmd();  /* This is sub command of piping, do not append to cmd_list */
+                cmd->next = new_cmd();  /* This is sub struct dysh_cmd of piping, do not append to cmd_list */
                 cmd = cmd->next;
             }
         }
@@ -218,12 +218,12 @@ void split_by_pipe(void)
  * @brief Helper function of process_redirect()
  * @param cmd The processed one
  */
-static void _process_redirect(Command *cmd)
+static void _process_redirect(struct dysh_cmd *cmd)
 {
     if (!(cmd->args[0])) return;
 
     for (size_t i = 0; i < cmd->count; i++) {
-        CmdArg p = cmd->args[i];
+        dysh_cmd_arg p = cmd->args[i];
         if (!p) return;
         if (strcmp(p, ">") == 0 && i < cmd->count - 1) {
             p = cmd->args[i + 1];
@@ -247,7 +247,7 @@ static void _process_redirect(Command *cmd)
 void process_redirect(void)
 {
     for (int i = 0; i < MAX_CMD_CNT; i++) {
-        Command *cmd = cmd_list[i];
+        struct dysh_cmd *cmd = cmd_list[i];
 
         while (cmd) {
             _process_redirect(cmd);

@@ -21,7 +21,7 @@
             EXIT_IF(dup2(cmd->redirect_fd[old_fd], old_fd) < 0, "failed dup2\n"); \
     } while (0)
 
-Command *cmd_list[MAX_CMD_CNT];
+struct dysh_cmd *cmd_list[MAX_CMD_CNT];
 
 /**
  * @brief Reset Signal handler
@@ -37,9 +37,9 @@ static void reset_signal_handler(int sig)
 
 /**
  * @brief Some thing need to do in child process before 
- * execute the command
+ * execute the struct dysh_cmd
  */
-static void ready_for_execution(Command *cmd)
+static void ready_for_execution(struct dysh_cmd *cmd)
 {
     REDIRECT(cmd, STDIN_FILENO);
     REDIRECT(cmd, STDOUT_FILENO);
@@ -51,7 +51,7 @@ static void ready_for_execution(Command *cmd)
 /**
  * @brief Signal handler
  * @note For shell process, we do no need to do anything else, block some 
- * signal is ok. For child process, using to execute command, we need to 
+ * signal is ok. For child process, using to execute struct dysh_cmd, we need to 
  * change the signal handler. Basically, SIGINT should be valid to child process
  * instead of shell process.
  * @param sig Handling signal
@@ -90,7 +90,7 @@ static int read_input(char *buf, size_t size)
 
 /**
  * @brief Process input to correct form
- * @param input Command line input
+ * @param input struct dysh_cmd line input
  * @return A cmd list storing the tokens
  */
 static void process_input(char *input)
@@ -109,7 +109,7 @@ static void process_input(char *input)
  * @note Also, we need to redirect the new pipe we created in this function to STDOUT,
  * and pass its read_end to next cmd
  */
-static int execute_cmd_with_pipe(Command *cmd, int read_fd)
+static int execute_cmd_with_pipe(struct dysh_cmd *cmd, int read_fd)
 {
     int pfd[2];
     EXIT_IF(pipe(pfd) < 0, "failed pipe\n");
@@ -148,11 +148,11 @@ static int execute_cmd_with_pipe(Command *cmd, int read_fd)
 }
 
 /**
- * @brief Execute the command
+ * @brief Execute the struct dysh_cmd
  * @param cmd Store the needed args
  * @return Zero if successfully execute
  */
-static int execute_cmd(Command *cmd)
+static int execute_cmd(struct dysh_cmd *cmd)
 {
     if (cmd->count == 0) return 0;
 
@@ -176,7 +176,7 @@ static int execute_cmd(Command *cmd)
         }
         /* Interesting behavior: When using wait(NULL) to wait for a child 
            process that has been interrupted (e.g., by Ctrl+C), a strange 
-           issue occurs where the prompt gets mixed with the command output. 
+           issue occurs where the prompt gets mixed with the struct dysh_cmd output. 
            This doesn't happen when using waitpid(pid, NULL, 0) to wait for 
            the child process.
            
@@ -217,7 +217,7 @@ static int execute_cmd(Command *cmd)
 }
 
 /**
- * @brief Execute all command in cmd_list
+ * @brief Execute all struct dysh_cmd in cmd_list
  * @return Zero if successfully execute
  */
 static int execute_cmd_list(void)
@@ -248,9 +248,9 @@ static void loop(void)
         process_input(input);
 #if DEBUG_PRINT_ARGS
         for (int i = 0; i < MAX_CMD_CNT; i++) {
-            Command *cmd = cmd_list[i];
+            struct dysh_cmd *cmd = cmd_list[i];
             if (!cmd) continue;
-            printf("< command %d\n", i);
+            printf("< struct dysh_cmd %d\n", i);
             int count = 0;
             while (cmd) {
                 printf("<< comand pipe %d\n", count++);
