@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include "parse.h"
 #include "err.h"
 
@@ -29,9 +30,9 @@ Command *new_cmd(void)
     EXIT_IF(cmd->args == NULL, "out of memory");
     cmd->args[0] = NULL;
     cmd->next = NULL;
-    cmd->redirect_fd[REDIRECT_STDIN]  = INVALID_FD;
-    cmd->redirect_fd[REDIRECT_STDOUT] = INVALID_FD;
-    cmd->redirect_fd[REDIRECT_STDERR] = INVALID_FD;
+    cmd->redirect_fd[0] = -1;
+    cmd->redirect_fd[1] = -1;
+    cmd->redirect_fd[2] = -1;
 
     return cmd;
 }
@@ -62,7 +63,7 @@ void free_cmd(Command *cmd)
     for (size_t i = 0; i < cmd->count; i++) {
         free(cmd->args[i]);
         for (int i = 0; i < 3; i++) {
-            if (cmd->redirect_fd[i] != -1) 
+            if (cmd->redirect_fd[i] != -1)
                 close(cmd->redirect_fd[i]);
         }
     }
@@ -219,7 +220,24 @@ void split_by_pipe(void)
  */
 static void _process_redirect(Command *cmd)
 {
-    (void) cmd;
+    if (!(cmd->args[0])) return;
+
+    for (size_t i = 0; i < cmd->count; i++) {
+        CmdArg p = cmd->args[i];
+        if (!p) return;
+        if (strcmp(p, ">") == 0 && i < cmd->count - 1) {
+            p = cmd->args[i + 1];
+            if (p) {
+                int fd = open(p, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+                EXIT_IF(fd < 0, "open error");
+                cmd->redirect_fd[1] = fd;
+                break;
+            } else {
+                fprintf(stderr, "redirect error\n");
+                return;
+            }
+        }
+    }
 }
 
 /**

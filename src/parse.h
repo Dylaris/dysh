@@ -8,11 +8,6 @@
 #define CMD_DELIM   ";"
 #define MAX_CMD_CNT 5
 
-#define REDIRECT_STDIN   0
-#define REDIRECT_STDOUT  1
-#define REDIRECT_STDERR  2
-#define INVALID_FD      -1
-
 typedef char *CmdArg;
 
 typedef struct Command {

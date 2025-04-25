@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <malloc.h>
 
-/* There has one problem: 'cat' will add an extra '\n'
-   because of 'puts()' and it will affect 'wc' */
-
 int main(int argc, char **argv)
 {
     if (argc < 2) return 1;
@@ -11,7 +8,7 @@ int main(int argc, char **argv)
     char *filename = argv[1];
     FILE *fp = fopen(filename, "r");
     if (!fp) {
-        fprintf(stderr, "file %s is not exist\n", filename);
+        fprintf(stderr, "cat error: file %s is not exist\n", filename);
         return 1;
     }
 
@@ -26,7 +23,7 @@ int main(int argc, char **argv)
     }
 
     fread(buf, 1, file_size, fp);
-    puts(buf);
+    printf("%s", buf);
     fflush(stdout);
 
     free(buf);

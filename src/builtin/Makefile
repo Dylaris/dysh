@@ -1,5 +1,5 @@
 CC = gcc 
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -std=gnu11
 
 BIN_DIR = ../bin
 SRC = $(wildcard *.c)

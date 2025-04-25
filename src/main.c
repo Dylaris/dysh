@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -14,8 +15,17 @@
 #define WRITE_END        1 /* pipe write end */
 #define CMD_FOLER        "src/bin/"
 
+#define REDIRECT(cmd, old_fd) \
+    do { \
+        if (cmd->redirect_fd[old_fd] != -1) \
+            EXIT_IF(dup2(cmd->redirect_fd[old_fd], old_fd) < 0, "failed dup2\n"); \
+    } while (0)
+
 Command *cmd_list[MAX_CMD_CNT];
 
+/**
+ * @brief Reset Signal handler
+ */
 static void reset_signal_handler(int sig)
 {
     struct sigaction sa;
@@ -23,6 +33,19 @@ static void reset_signal_handler(int sig)
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
     sigaction(sig, &sa, NULL);
+}
+
+/**
+ * @brief Some thing need to do in child process before 
+ * execute the command
+ */
+static void ready_for_execution(Command *cmd)
+{
+    REDIRECT(cmd, STDIN_FILENO);
+    REDIRECT(cmd, STDOUT_FILENO);
+    REDIRECT(cmd, STDERR_FILENO);
+
+    reset_signal_handler(SIGINT);
 }
 
 /**
@@ -48,12 +71,21 @@ static void signal_handler(int sig)
  * @brief Read input and store it to buffer
  * @param buf Buffer storing input
  * @param size Size of buffer
+ * @return Zero if there has at least one printable character
  */
-static void read_input(char *buf, size_t size)
+static int read_input(char *buf, size_t size)
 {
     /* fgtes() will return NULL and set errno to EINTR when signal happened */
     EXIT_IF(fgets(buf, size, stdin) == NULL && errno != EINTR, "read input");
     buf[strcspn(buf, "\n")] = '\0';
+
+    /* Check if the input is 'empty' */
+    char *p = buf;
+    while (*p) {
+        if (isprint(*p)) return 0;
+        p++;
+    }
+    return 1;
 }
 
 /**
@@ -66,23 +98,25 @@ static void process_input(char *input)
     split_by_semicolon(input);
     split_by_pipe();
     split_by_space();
+    process_redirect();
 }
 
 /**
  * @brief This is helper function to piping cmd through recursively call
  * @param cmd Current cmd need to be executed
  * @param read_fd The read fd (previous pipe read end), we need to redirect it to STDIN
+ * @return Zero if successfully execute
  * @note Also, we need to redirect the new pipe we created in this function to STDOUT,
  * and pass its read_end to next cmd
  */
-static void execute_cmd_with_pipe(Command *cmd, int read_fd)
+static int execute_cmd_with_pipe(Command *cmd, int read_fd)
 {
     int pfd[2];
     EXIT_IF(pipe(pfd) < 0, "failed pipe\n");
 
     pid_t pid = fork();
     if (pid == 0) {
-        reset_signal_handler(SIGINT);
+        ready_for_execution(cmd);
 
         close(pfd[READ_END]);
 
@@ -99,40 +133,46 @@ static void execute_cmd_with_pipe(Command *cmd, int read_fd)
         char path[CMD_LENGTH];
         sprintf(path, CMD_FOLER"%s", cmd->args[0]);
         execv(path, cmd->args);
-        exit(EXIT_FAILURE); /* We arrive here when execv failed */
+        exit(1); /* We arrive here when execv failed */
     }
 
     close(read_fd);
     close(pfd[WRITE_END]);
-    waitpid(pid, NULL, 0); /* Block until child process is over execution */
+    int status = 0;
+    waitpid(pid, &status, 0); /* Block until child process is over execution */
     if (cmd->next)
-        execute_cmd_with_pipe(cmd->next, pfd[READ_END]);
+        status += execute_cmd_with_pipe(cmd->next, pfd[READ_END]);
     close(pfd[READ_END]);
+
+    return status;
 }
 
 /**
  * @brief Execute the command
  * @param cmd Store the needed args
- * @todo pipe and other combination command
+ * @return Zero if successfully execute
  */
-static void execute_cmd(Command *cmd)
+static int execute_cmd(Command *cmd)
 {
-    if (cmd->count == 0) return;
+    if (cmd->count == 0) return 0;
 
     if (strcmp(cmd->args[0], "exit") == 0)
-        exit(EXIT_SUCCESS);
+        exit(0);
 
     char path[CMD_LENGTH];
     sprintf(path, CMD_FOLER"%s", cmd->args[0]);
+
+    int status = 0;
 
     if (!(cmd->next)) {
         /* No piping */
 
         pid_t pid = fork();
         if (pid == 0) {
-            reset_signal_handler(SIGINT);
+            ready_for_execution(cmd);
+
             execv(path, cmd->args);
-            exit(EXIT_FAILURE); /* We arrive here when execv failed */
+            exit(1); /* We arrive here when execv failed */
         }
         /* Interesting behavior: When using wait(NULL) to wait for a child 
            process that has been interrupted (e.g., by Ctrl+C), a strange 
@@ -145,7 +185,7 @@ static void execute_cmd(Command *cmd)
            - Interrupt it using Ctrl+C.
            - After interrupting, run `cat Makefile`, and you'll notice that the output from `cat` and the prompt
              get mixed together due to the way the shell handles the interrupted child process. */
-        waitpid(pid, NULL, 0);
+        waitpid(pid, &status, 0);
     } else {
         /* Piping */
 
@@ -154,7 +194,7 @@ static void execute_cmd(Command *cmd)
 
         pid_t pid = fork();
         if (pid == 0) {
-            reset_signal_handler(SIGINT);
+            ready_for_execution(cmd);
 
             close(pfd[READ_END]);
 
@@ -164,25 +204,30 @@ static void execute_cmd(Command *cmd)
 
             /* Output of current cmd is passed to next cmd through pipe */
             execv(path, cmd->args);
-            exit(EXIT_FAILURE); /* We arrive here when execv failed */
+            exit(1); /* We arrive here when execv failed */
         }
 
         close(pfd[WRITE_END]);
-        waitpid(pid, NULL, 0); /* Block until child process is over execution */
+        waitpid(pid, &status, 0); /* Block until child process is over execution */
         execute_cmd_with_pipe(cmd->next, pfd[READ_END]);
         close(pfd[READ_END]);
     }
+
+    return status;
 }
 
 /**
  * @brief Execute all command in cmd_list
+ * @return Zero if successfully execute
  */
-static void execute_cmd_list(void)
+static int execute_cmd_list(void)
 {
+    int status = 0;
     for (int i = 0; i < MAX_CMD_CNT; i++) {
         if (!cmd_list[i]) continue;
-        execute_cmd(cmd_list[i]);
+        status += execute_cmd(cmd_list[i]);
     }
+    return status;
 }
 
 /**
@@ -194,10 +239,12 @@ static void execute_cmd_list(void)
 static void loop(void) 
 {
     char input[CMD_LENGTH];
+    memset(input, 0, sizeof(input));
+
     while (1) {
         printf("dysh> ");
         fflush(stdout);
-        read_input(input, sizeof(input));
+        if (read_input(input, sizeof(input))) continue;
         process_input(input);
 #if DEBUG_PRINT_ARGS
         for (int i = 0; i < MAX_CMD_CNT; i++) {
@@ -212,7 +259,11 @@ static void loop(void)
             }
         }
 #endif /* DEBUG_PRINT_ARGS */
-        execute_cmd_list();
+        int status = execute_cmd_list();
+        if (!status) 
+            printf("\n<<< Exit Code >>>: " YELLOW "%d" RESET " -> " GREEN "success" RESET "\n\n", status);
+        else
+            printf("\n<<< Exit Code >>>: " YELLOW "%d" RESET " -> " RED "failure" RESET "\n\n", status);
 
         memset(input, 0, sizeof(input));
         free_cmd_list();

@@ -1,6 +1,8 @@
 #ifndef _DYSH_ERR_H_
 #define _DYSH_ERR_H_
 
+#include "color.h"
+
 #define TRUE   1
 #define FALSE  0
 #define UNKNW -1
@@ -16,7 +18,7 @@
 /* Exit if exp is true */
 #define EXIT_IF(exp, fmt, ...) do { \
         if (exp) { \
-            fprintf(stderr, fmt, ##__VA_ARGS__); \
+            fprintf(stderr, fmt "\n", ##__VA_ARGS__); \
             exit(EXIT_FAILURE); \
         } \
     } while (0)
@@ -79,13 +81,13 @@
 
 #define PASS(case_id) \
     do { \
-        printf("case %d: ok\n", case_id); \
+        printf("case %d: [" GREEN "pass" RESET "]\n", case_id); \
         fflush(stdout); \
     } while (0)
 
 #define FAIL(case_id) \
     do { \
-        printf("case %d: fail\n", case_id); \
+        printf("case %d: [" RED "fail" RESET "]\n", case_id); \
         fflush(stdout); \
     } while (0)
 
