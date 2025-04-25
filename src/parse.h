@@ -23,6 +23,7 @@ struct dysh_cmd *new_cmd(void);
 void free_cmd(struct dysh_cmd *cmd);
 void free_cmd_list(void);
 void append_cmd_arg(struct dysh_cmd *cmd, dysh_cmd_arg arg);
+void remove_cmd_arg(struct dysh_cmd *cmd, size_t idx);
 void print_cmd_args(struct dysh_cmd *cmd);
 void split_by_pipe(void);
 void split_by_space(void);

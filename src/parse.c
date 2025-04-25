@@ -63,8 +63,10 @@ void free_cmd(struct dysh_cmd *cmd)
     for (size_t i = 0; i < cmd->count; i++) {
         free(cmd->args[i]);
         for (int i = 0; i < 3; i++) {
-            if (cmd->redirect_fd[i] != -1)
+            if (cmd->redirect_fd[i] != -1) {
                 close(cmd->redirect_fd[i]);
+                cmd->redirect_fd[i] = -1;
+            }
         }
     }
     free(cmd->args);
@@ -108,6 +110,36 @@ void append_cmd_arg(struct dysh_cmd *cmd, dysh_cmd_arg arg)
     cmd->args[cmd->count - 1] = STR_COPY(arg);
     EXIT_IF(cmd->args[cmd->count - 1] == NULL, "out of memory");
     cmd->args[cmd->count] = NULL;
+}
+
+/**
+ * @brief Remove the new arg of the current cmd at the position 'idx'
+ * @param cmd Current cmd holding this arg
+ * @param idx Remove index
+ */
+void remove_cmd_arg(struct dysh_cmd *cmd, size_t idx)
+{
+    if (idx > cmd->count) return;
+
+    size_t old_args_count = cmd->count;
+    dysh_cmd_arg *old_args = cmd->args;
+
+    dysh_cmd_arg *new_args = malloc(sizeof(dysh_cmd_arg));
+    EXIT_IF(cmd->args == NULL, "out of memory");
+    new_args[0] = NULL;
+
+    cmd->args = new_args;
+    cmd->count = 0;
+
+    for (size_t i = 0; i < old_args_count; i++) {
+        if (i == idx) {
+            free(old_args[i]);
+            continue;
+        }
+        append_cmd_arg(cmd, old_args[i]);
+        free(old_args[i]);
+    }
+    free(old_args);
 }
 
 /**
@@ -224,18 +256,44 @@ static void _process_redirect(struct dysh_cmd *cmd)
 
     for (size_t i = 0; i < cmd->count; i++) {
         dysh_cmd_arg p = cmd->args[i];
+        int open_flags = -1;
+        int redirect_fd_nr = -1;
+
         if (!p) return;
-        if (strcmp(p, ">") == 0 && i < cmd->count - 1) {
-            p = cmd->args[i + 1];
-            if (p) {
-                int fd = open(p, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-                EXIT_IF(fd < 0, "open error");
-                cmd->redirect_fd[1] = fd;
-                break;
-            } else {
+
+        if (strcmp(p, ">") == 0) {
+            if (i >= cmd->count - 1 || !(cmd->args[i + 1])) { 
                 fprintf(stderr, "redirect error\n");
                 return;
             }
+            open_flags = O_CREAT | O_WRONLY | O_TRUNC;
+            redirect_fd_nr = 1;
+        } else if (strcmp(p, ">>") == 0) {
+            if (i >= cmd->count - 1 || !(cmd->args[i + 1])) { 
+                fprintf(stderr, "redirect error\n");
+                return;
+            }
+            open_flags = O_CREAT | O_WRONLY | O_APPEND;
+            redirect_fd_nr = 1;
+        } else if (strcmp(p, "<") == 0) {
+            if (i >= cmd->count - 1 || !(cmd->args[i + 1])) { 
+                fprintf(stderr, "redirect error\n");
+                return;
+            }
+            open_flags = O_RDONLY;
+            redirect_fd_nr = 0;
+        }
+
+        p = cmd->args[i + 1];
+        if (p && redirect_fd_nr != -1) {
+            int fd = open(p, open_flags, 0644);
+            EXIT_IF(fd < 0, "open error");
+            cmd->redirect_fd[redirect_fd_nr] = fd;
+
+            remove_cmd_arg(cmd, i); /* remove redirect operator */
+            remove_cmd_arg(cmd, i); /* remove redirect file (file position should be minus 1) */
+
+            break;
         }
     }
 }

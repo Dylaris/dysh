@@ -42,6 +42,7 @@ int main(int argc, char **argv)
         if (feof(stdin)) break; // avoid empty read
     }
 
+    // printf("just for debug\n");
     fclose(fp);
 
     return 0;

@@ -10,7 +10,7 @@
 #include "err.h"
 
 #define CMD_LENGTH       256
-#define DEBUG_PRINT_ARGS 0
+#define DEBUG            0
 #define READ_END         0 /* pipe read end */
 #define WRITE_END        1 /* pipe write end */
 #define CMD_FOLER        "src/bin/"
@@ -44,7 +44,11 @@ static void ready_for_execution(struct dysh_cmd *cmd)
     REDIRECT(cmd, STDIN_FILENO);
     REDIRECT(cmd, STDOUT_FILENO);
     REDIRECT(cmd, STDERR_FILENO);
-
+#if DEBUG
+    printf("redirect fd: %d %d %d\n", cmd->redirect_fd[0],
+                                      cmd->redirect_fd[1],
+                                      cmd->redirect_fd[2]);
+#endif /* DEBUG */
     reset_signal_handler(SIGINT);
 }
 
@@ -246,19 +250,19 @@ static void loop(void)
         fflush(stdout);
         if (read_input(input, sizeof(input))) continue;
         process_input(input);
-#if DEBUG_PRINT_ARGS
+#if DEBUG
         for (int i = 0; i < MAX_CMD_CNT; i++) {
             struct dysh_cmd *cmd = cmd_list[i];
             if (!cmd) continue;
-            printf("< struct dysh_cmd %d\n", i);
+            printf("< command %d\n", i);
             int count = 0;
             while (cmd) {
-                printf("<< comand pipe %d\n", count++);
+                printf("<< sub comand %d\n", count++);
                 print_cmd_args(cmd);
                 cmd = cmd->next;
             }
         }
-#endif /* DEBUG_PRINT_ARGS */
+#endif /* DEBUG */
         int status = execute_cmd_list();
         if (!status) 
             printf("\n<<< Exit Code >>>: " YELLOW "%d" RESET " -> " GREEN "success" RESET "\n\n", status);
