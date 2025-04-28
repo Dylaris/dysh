@@ -8,26 +8,26 @@
 #define CMD_DELIM   ";"
 #define MAX_CMD_CNT 5
 
-typedef char *dysh_cmd_arg;
+typedef char *CommandArg;
 
-struct dysh_cmd {
+struct Command {
     size_t count;           /* count of arg */
-    dysh_cmd_arg *args;     /* args list */
-    struct dysh_cmd *next;  /* used for piping */
+    CommandArg *args;     /* args list */
+    struct Command *next;  /* used for piping */
     int redirect_fd[3];     /* used for redirecting */
 };
 
-extern struct dysh_cmd *cmd_list[MAX_CMD_CNT];
+extern struct Command *cmd_list[MAX_CMD_CNT];
 
-struct dysh_cmd *new_cmd(void);
-void free_cmd(struct dysh_cmd *cmd);
+struct Command *new_cmd(void);
+void free_cmd(struct Command *cmd);
 void free_cmd_list(void);
-void append_cmd_arg(struct dysh_cmd *cmd, dysh_cmd_arg arg);
-void remove_cmd_arg(struct dysh_cmd *cmd, size_t idx);
-void print_cmd_args(struct dysh_cmd *cmd);
+void append_cmd_arg(struct Command *cmd, CommandArg arg);
+void remove_cmd_arg(struct Command *cmd, size_t idx);
+void print_cmd_args(struct Command *cmd);
 void split_by_pipe(void);
 void split_by_space(void);
 void split_by_semicolon(char *input);
-void process_redirect(void);
+int process_redirect(void);
 
 #endif /* _DYSH_PARSER_H_ */

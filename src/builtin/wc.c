@@ -10,7 +10,7 @@ int main(void)
     char *buf = malloc(sizeof(char) * BUF_LEN);
     if (!buf) {
         fprintf(stderr, "out of memory\n");
-        exit(EXIT_FAILURE);
+        return 1;
     }
     memset(buf, 0, BUF_LEN);
 

@@ -6,7 +6,7 @@ int main(int argc, char **argv)
 {
     if (argc > 3) {
         fprintf(stderr, "Usage: tee [-a] file\n");
-        exit(EXIT_FAILURE);
+        return 1;
     }
 
     char *open_flags = "w"; // O_WRONLY | O_CREAT | O_TRUNC
@@ -21,7 +21,7 @@ int main(int argc, char **argv)
             break;
         default:
             fprintf(stderr, "Usage: tee [-a] file\n");
-            exit(EXIT_FAILURE);
+            return 1;
         }
     }
 
@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     FILE *fp = fopen(filename, open_flags); // default permision: rw-rw-rw-
     if (!fp) {
         fprintf(stderr, "tee error: open file\n");
-        exit(EXIT_FAILURE);
+        return 1;
     }
 
     size_t rbytes = 0;
