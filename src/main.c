@@ -10,7 +10,7 @@
 #include "err.h"
 
 #define ARG_DEBUG        0
-#define SIG_DEBUG        1
+#define SIG_DEBUG        0
 
 #define CMD_LENGTH       256
 #define READ_END         0      /* pipe read end */
@@ -310,6 +310,7 @@ static void loop(void)
         else
             printf("\n<<< Exit Code >>>: " YELLOW "%d" RESET " -> " RED "failure" RESET "\n\n", status);
 
+        update_jobs();
         memset(input, 0, sizeof(input));
         free_cmd_list();
         status = 0;

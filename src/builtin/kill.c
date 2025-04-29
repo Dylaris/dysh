@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <signal.h>
+#include <sys/wait.h>
 
 #define SIGNAL_CONVERT(sig_str, res) do { \
              if (strcmp((sig_str), "SIGCONT") == 0) *(res) = SIGCONT; \
@@ -29,6 +30,7 @@ int main(int argc, char **argv)
     for (int i = 2; i < argc; i++) {
         int pid = atoi(argv[i]);
         kill(pid, sig);
+        while (waitpid(pid, NULL, WNOHANG) > 0);    // avoid zombile process
     }
 
     return 0;

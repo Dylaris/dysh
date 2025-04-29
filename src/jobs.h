@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "err.h"
 
 #define MAX_JOBS        10
@@ -39,7 +40,10 @@ static inline void move_to_new_pgrp()
 
 static inline int is_job_alive(pid_t pid)
 {
-    return (kill(pid, 0) == 0) ? TRUE : FALSE;
+    int saved_errno = errno;
+    while (waitpid(pid, NULL, WNOHANG) > 0); // avoid zombile process
+    errno = saved_errno;
+    return (kill(pid, 0) == 0 && errno != ESRCH) ? TRUE : FALSE;
 }
 
 static inline void append_job(pid_t pid)
@@ -56,11 +60,16 @@ static inline void list_jobs(void)
     int count = 0;
     for (int i = 0; i < MAX_JOBS; i++) {
         if (jobs[i] == INVALID_JOBID) continue;
-        if (is_job_alive(jobs[i]) == FALSE) {
-            jobs[i] = INVALID_JOBID;
-            continue;
-        }
         printf("job %d <pid: %u> <state: %c>\n",  count++, jobs[i], 'T');
+    }
+}
+
+static inline void update_jobs(void)
+{
+    for (int i = 0; i < MAX_JOBS; i++) {
+        if (jobs[i] == INVALID_JOBID) continue;
+        if (is_job_alive(jobs[i]) == FALSE)
+            jobs[i] = INVALID_JOBID;
     }
 }
 
