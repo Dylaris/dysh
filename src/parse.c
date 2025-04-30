@@ -33,6 +33,7 @@ struct Command *new_cmd(void)
     cmd->redirect_fd[0] = -1;
     cmd->redirect_fd[1] = -1;
     cmd->redirect_fd[2] = -1;
+    cmd->flag = RUN_IN_FG;
 
     return cmd;
 }
@@ -196,7 +197,8 @@ static void _split_by_space(struct Command *cmd)
     free_cmd_args(cmd);
     CommandArg arg = strtok(cmd_str, ARG_DELIM);
     while (arg) {
-        append_cmd_arg(cmd, arg);
+        if (strcmp(arg, "&") == 0) cmd->flag = RUN_IN_BG;
+        else append_cmd_arg(cmd, arg);
         arg = strtok(NULL, ARG_DELIM);
     }
     free(cmd_str);

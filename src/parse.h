@@ -8,13 +8,17 @@
 #define CMD_DELIM   ";"
 #define MAX_CMD_CNT 5
 
+#define RUN_IN_BG (1 << 0)
+#define RUN_IN_FG (1 << 1)
+
 typedef char *CommandArg;
 
 struct Command {
     size_t count;           /* count of arg */
-    CommandArg *args;     /* args list */
-    struct Command *next;  /* used for piping */
+    CommandArg *args;       /* args list */
+    struct Command *next;   /* used for piping */
     int redirect_fd[3];     /* used for redirecting */
+    int flag;               /* some command flags */
 };
 
 extern struct Command *cmd_list[MAX_CMD_CNT];

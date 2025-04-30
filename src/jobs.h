@@ -28,22 +28,20 @@ static inline void bring_process_to_foregound(pid_t pid)
     EXIT_IF(tcsetpgrp(STDIN_FILENO, pid) == -1, "bring process to foreground failed");
 }
 
-static inline void restore_terminal_to_shell()
+static inline void restore_terminal_to_shell(void)
 {
     EXIT_IF(tcsetpgrp(STDIN_FILENO, shell_pgrp) == -1, "restore terminal to shell failed");
 }
 
-static inline void move_to_new_pgrp()
+static inline void move_to_new_pgrp(void)
 {
     EXIT_IF(setpgid(0, 0) == -1, "move to new pgrp failed");
 }
 
 static inline int is_job_alive(pid_t pid)
 {
-    int saved_errno = errno;
     while (waitpid(pid, NULL, WNOHANG) > 0); // avoid zombile process
-    errno = saved_errno;
-    return (kill(pid, 0) == 0 && errno != ESRCH) ? TRUE : FALSE;
+    return (kill(pid, 0) == 0) ? TRUE : FALSE;
 }
 
 static inline void append_job(pid_t pid)

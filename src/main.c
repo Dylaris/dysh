@@ -69,13 +69,14 @@ static void ready_for_execution(struct Command *cmd)
     REDIRECT(cmd, STDIN_FILENO);
     REDIRECT(cmd, STDOUT_FILENO);
     REDIRECT(cmd, STDERR_FILENO);
-#if DEBUG
+#if ARG_DEBUG
     printf("redirect fd: %d %d %d\n", cmd->redirect_fd[0],
                                       cmd->redirect_fd[1],
                                       cmd->redirect_fd[2]);
-#endif /* DEBUG */
+#endif /* ARG_DEBUG */
     set_signal_handler(SIGUSR1, signal_handler);
     set_signal_handler(SIGUSR2, signal_handler);
+    if (cmd->flag == RUN_IN_BG) raise(SIGUSR1);
 }
 
 /**
@@ -125,12 +126,14 @@ static void wait_child(pid_t pid, int *status)
     while (1) {
         pid_t result = waitpid(pid, status, WNOHANG | WUNTRACED);
         if (result != 0) {  /* not running */
-            *status = 0;    /* stop is a normal state */
-#ifdef SIG_DEBUG
+#if SIG_DEBUG
             if (is_job_alive(pid) == FALSE) printf("job is not alive\n");
             else printf("job is alive\n");
 #endif /* SIG_DEBUG */
-            if (is_job_alive(pid) == TRUE) append_job(pid);
+            if (is_job_alive(pid) == TRUE) {
+                append_job(pid); 
+                *status = 0;    /* stop is normal state */
+            }
             break;     
         }
     }
@@ -174,7 +177,7 @@ static int execute_cmd_with_pipe(struct Command *cmd, int read_fd)
     close(read_fd);
     close(pfd[WRITE_END]);
     int status = 0;
-    waitpid(pid, &status, 0); /* Block until child process is over execution */
+    wait_child(pid, &status);
     if (cmd->next)
         status += execute_cmd_with_pipe(cmd->next, pfd[READ_END]);
     close(pfd[READ_END]);
@@ -207,7 +210,7 @@ static int execute_cmd(struct Command *cmd)
         if (pid == 0) {
             ready_for_execution(cmd);
 
-#ifdef SIG_DEBUG
+#if SIG_DEBUG
             printf("child process <%u>\n", getpid());
             if (strcmp(cmd->args[0], "cat") == 0)
                 raise(SIGUSR1);
@@ -251,7 +254,7 @@ static int execute_cmd(struct Command *cmd)
         }
 
         close(pfd[WRITE_END]);
-        waitpid(pid, &status, 0); /* Block until child process is over execution */
+        wait_child(pid, &status);
         execute_cmd_with_pipe(cmd->next, pfd[READ_END]);
         close(pfd[READ_END]);
     }
@@ -328,7 +331,7 @@ int main(void)
         cmd_list[i] = NULL;
 
     /* Set signal handler */
-#ifdef SIG_DEBUG
+#if SIG_DEBUG
     printf("parent process <%u>\n", getpid());
 #endif /* SIG_DEBUG */
     set_signal_handler(SIGINT,  SIG_IGN);
