@@ -219,18 +219,6 @@ static int execute_cmd(struct Command *cmd)
             execv(path, cmd->args);
             exit(1); /* We arrive here when execv failed */
         }
-        /* Interesting behavior: When using wait(NULL) to wait for a child 
-           process that has been interrupted (e.g., by Ctrl+C), a strange 
-           issue occurs where the prompt gets mixed with the struct Command output. 
-           This doesn't happen when using waitpid(pid, NULL, 0) to wait for 
-           the child process.
-           
-           Example:
-           - Run: `tee test_file` in a child process.
-           - Interrupt it using Ctrl+C.
-           - After interrupting, run `cat Makefile`, and you'll notice that the output from `cat` and the prompt
-             get mixed together due to the way the shell handles the interrupted child process. */
-
         wait_child(pid, &status);
     } else {
         /* Piping */

@@ -15,4 +15,9 @@ Usage:
 $ make
 $ ./dysh
 dysh> help
+
+OR
+$ lua build.lua
+$ ./dysh
+dysh> help
 ```
