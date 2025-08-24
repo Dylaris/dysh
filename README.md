@@ -2,22 +2,17 @@
 
 Features:
 ```
-easy cmd separator  -> DONE
 pipe                -> DONE
 easy redirection    -> DONE
-builtin command     -> DONE
+builtin cmd         -> UNDONE
 job control         -> UNDONE
-easy wildcard       -> UNDONE
+history cmd         -> UNDONE
+hot key             -> UNDONE
 ```
 
 Usage:
 ```console
-$ make
-$ ./dysh
-dysh> help
-
-OR
-$ lua build.lua
+$ ./build.sh
 $ ./dysh
 dysh> help
 ```
