@@ -4,7 +4,7 @@ Features:
 ```
 pipe                -> DONE
 easy redirection    -> DONE
-builtin cmd         -> UNDONE
+builtin cmd         -> DONE
 job control         -> UNDONE
 history cmd         -> UNDONE
 hot key             -> UNDONE

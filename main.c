@@ -12,13 +12,33 @@
 typedef struct Cmd {
     int fin;  // file stdin
     int fout; // file stdout
+
+    // Dynamic array for args
     size_t count;
     size_t capacity;
     char **args;
+
     struct Cmd *next;
+    int builtin_idx;
 } Cmd;
 static Cmd *head = NULL;
 static Cmd *tail = NULL;
+
+static void __hello(void)
+{
+    printf("Hello, World\n");
+}
+
+typedef void (*BuiltinFunc)(void);
+typedef struct BuiltinCmd {
+    char *name;
+    BuiltinFunc func;
+} BuiltinCmd;
+
+static BuiltinCmd builtin_cmds[] = {
+    // name, builtin_func
+    {"hello", __hello}
+};
 
 static void append_arg(Cmd *cmd, char *arg)
 {
@@ -46,6 +66,7 @@ static Cmd *new_cmd(void)
     cmd->capacity = 0;
     cmd->args = NULL;
     cmd->next = NULL;
+    cmd->builtin_idx = -1;
     return cmd;
 }
 
@@ -92,10 +113,11 @@ static void read_input(char *input, size_t bufsize)
 
 static void process_input(char *input)
 {    
+    // Parse the command and create a list of piped commands
     char *cmd_token = strtok(input, "|");
     while (cmd_token) {
         Cmd *cmd = new_cmd();
-        // tempory storage
+        // Temporary storage
         cmd->args = (char**)strdup(cmd_token);
         if (!cmd->args) {
             perror("strdup");
@@ -105,13 +127,15 @@ static void process_input(char *input)
         cmd_token = strtok(NULL, "|");
     }
 
+    // Parse arguments for each command
     for (Cmd *cur = head; cur != NULL; cur = cur->next) {
-        // restore cur->args to NULL
-        char *tmp = (char*)cur->args;
+        // Restore cmd->args to NULL
+        char *arg_buf = (char*)cur->args;
         cur->args = NULL;
-        char *arg_token = strtok(tmp, " ");
+
+        char *arg_token = strtok(arg_buf, " ");
         while (arg_token) {
-            // redirect
+            // Redirect
             if (strstr(arg_token, ">>")) {
                 char *filename = strtok(NULL, " ");
                 int fd = open(filename, O_CREAT | O_APPEND | O_WRONLY, 0644);
@@ -142,7 +166,12 @@ static void process_input(char *input)
             arg_token = strtok(NULL, " ");
         }
         append_arg(cur, NULL);
-        free(tmp);
+        if (arg_buf) free(arg_buf);
+
+        // Check if the command is builtin command
+        for (size_t i = 0; i < sizeof(builtin_cmds)/sizeof(builtin_cmds[0]); i++) {
+            if (strcmp(cur->args[0], builtin_cmds[i].name) == 0) cur->builtin_idx = i;
+        }
     }
 }
 
@@ -180,9 +209,21 @@ static void pipe_redirect(Cmd *cmd, int prev_pipe[], int next_pipe[])
     
     // Close unnecessary pipe descriptors
     if (prev_pipe[0] != -1) close(prev_pipe[0]);
-    if (prev_pipe[1] != -1) close(prev_pipe[1]);
-    if (next_pipe[0] != -1) close(next_pipe[0]);
     if (next_pipe[1] != -1) close(next_pipe[1]);
+}
+
+static void execute_cmd(Cmd *cmd)
+{
+    if (cmd->builtin_idx != -1) {
+        BuiltinFunc func = builtin_cmds[cmd->builtin_idx].func;
+        func();
+        exit(0);
+    } else {
+        execvp(cmd->args[0], cmd->args);
+        // Unreachable
+        perror("execvp");
+        exit(1);
+    }
 }
 
 static void execute_input(void)
@@ -210,13 +251,15 @@ static void execute_input(void)
         } else if (pid == 0) {
             if (head != tail) pipe_redirect(cur, prev_pipe, next_pipe);
             file_redirect(cur);
-            execvp(cur->args[0], cur->args);
-            perror("execvp");
-            exit(1);
+            execute_cmd(cur);
         } else {
             // Close unnecessary pipe descriptors
             if (prev_pipe[0] != -1) close(prev_pipe[0]);
             if (prev_pipe[1] != -1) close(prev_pipe[1]);
+
+            // Close unnecessary file descriptors
+            if (cur->fin  != -1) close(cur->fin);
+            if (cur->fout != -1) close(cur->fout);
 
             // Next command
             if (cur != tail) {
