@@ -1,0 +1,4 @@
+1. A command will fail to control the terminal if it runs in a new process group. 
+This issue arises with commands like 'cat' and 'tee', which need terminal input but, 
+when forked into a new process group, lose the permissions to access the terminal, 
+leading to errors.
